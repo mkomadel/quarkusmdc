@@ -1,23 +1,20 @@
 package org.test;
 
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.apache.log4j.Logger;
-import org.apache.log4j.MDC;
-
+import io.quarkus.arc.Arc;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import org.apache.log4j.Logger;
+import org.apache.log4j.MDC;
+
 @Path("/hello")
 public class GreetingResource {
-
     static final Logger Log = Logger.getLogger(GreetingResource.class);
-
     @Inject
     ScheduledExecutorService executor;
 
@@ -31,18 +28,24 @@ public class GreetingResource {
         Log.info("request received");
 
         var asyncTask = executor.submit(() -> {
-            MDC.put("request.path", "async test");
-            //logs '(1234, async test) Async task completed' -> OK
-            Log.info("Async task completed");
+            var ctx = Arc.container().requestContext();
+            ctx.activate();
             try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                Log.error("Error in sleep", e);
-            }
-            //clear MDC in second thread
-            MDC.clear();
-            return 1;
+                MDC.put("request.path", "async test");
+                //logs '(1234, async test) Async task completed' -> OK
+                Log.info("Async task completed");
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Log.error("Error in sleep", e);
+                }
+                //clear MDC in second thread
+                MDC.clear();
+                return 1;
 
+            }finally {
+                ctx.terminate();
+            }
         });
         asyncTask.get();
 
